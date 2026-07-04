@@ -57,13 +57,11 @@ class _FirstScreenState extends State<FirstScreen> {
       _showToast(context, 'Other is available.');
     } else if (connectivityResult.contains(ConnectivityResult.none)) {
       if (!mounted) return;
-      setState(() {
-        _showAlertDialog(
-          context,
-          'No Internet',
-          'Please check your internet connection',
-        );
-      });
+      _showAlertDialog(
+        context,
+        'No Internet',
+        'Please check your internet connection',
+      );
     }
   }
 
