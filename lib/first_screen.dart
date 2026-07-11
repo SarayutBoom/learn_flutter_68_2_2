@@ -5,6 +5,11 @@ import 'dart:async';
 // step 3 : Check internet connection
 import 'package:connectivity_plus/connectivity_plus.dart';
 
+//step7 : Firebase CRUD operations
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:learn_flutter_68_2_2/services/firestore.dart';
+
+
 class FirstScreen extends StatefulWidget {
   const FirstScreen({super.key});
 
@@ -95,27 +100,28 @@ class _FirstScreenState extends State<FirstScreen> {
   }
 }
 
-class SecondScreen extends StatelessWidget {
-  const SecondScreen({super.key});
+// class SecondScreen extends StatelessWidget {
+//   const SecondScreen({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Second Screen')),
-      body: const Center(
-        child: Text(
-          'This is a Second Screen',
-          style: TextStyle(
-            fontSize: 24,
-            color: Colors.amber,
-            fontWeight: FontWeight.w500,
-            fontFamily: 'Alike',
-          ),
-        ),
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       appBar: AppBar(title: const Text('Second Screen')),
+//       body: const Center(
+//         child: Text(
+//           'This is a Second Screen',
+//           style: TextStyle(
+//             fontSize: 24,
+//             color: Colors.amber,
+//             fontWeight: FontWeight.w500,
+//             fontFamily: 'Alike',
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+// }
+
 
 // step 4 : show toast message
 void _timer(BuildContext context) {
@@ -175,4 +181,158 @@ void _showAlertDialog(BuildContext context, String title, String msg){
         ],
       );
   });
+}
+
+class SecondScreen extends StatefulWidget {
+  const SecondScreen({super.key});
+
+  @override
+  State<SecondScreen> createState() => _SecondScreenState();
+}
+
+class _SecondScreenState extends State<SecondScreen> {
+  // make an instance of FirestoreService
+  final FirestoreService firestoreService = FirestoreService();
+
+  // text editing controllers for the input fields
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController ageController = TextEditingController();
+
+  // Open a dialog to add a new person
+  void openPersonBox(String? personID) async {
+    if (personID != null) {
+      // Update case
+      final person = await firestoreService.getPersonById(personID);
+      nameController.text = person?['personName'] ?? '';
+      emailController.text = person?['personEmail'] ?? '';
+      ageController.text = person?['personAge']?.toString() ?? '';
+    }else {
+      // Add case
+      nameController.clear();
+      emailController.clear();
+      ageController.clear();
+    }
+
+    showDialog(
+      context: context, 
+        builder: (context) => AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(labelText: 'Name'),
+              ),
+              TextField(
+                controller: emailController,
+                decoration: InputDecoration(labelText: 'Email'),
+              ),
+              TextField(
+                controller: ageController,
+                decoration: InputDecoration(labelText: 'Age'),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: (){
+                Navigator.of(context).pop();
+                }, 
+                child: Text("Cancel"),
+                ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = nameController.text;
+                final email = emailController.text;
+                final age = int.tryParse(ageController.text) ?? 0;
+
+                if (personID != null) {
+                  // Update existing person
+                  firestoreService.updatePerson(personID, name, email, age);
+                } else {
+                  // Add new person
+                  firestoreService.addPerson(name, email, age);
+                }
+
+                nameController.clear();
+                emailController.clear();
+                ageController.clear();
+
+                Navigator.of(context).pop();
+              }, 
+              child: Text(personID != null ? "Update" : "Add"),
+            ),
+          ],
+        ),
+      );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Persons List"),
+        automaticallyImplyLeading: false, // remove the back button
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => openPersonBox(null), // Open dialog to add a new person
+        child: Icon(Icons.add),
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream : firestoreService.getPersons(),
+        builder:(context, snapshot) {
+          // if we data, get the list of persons
+          if (snapshot.hasData){
+            final personsList = snapshot.data!.docs;
+
+            //Display the list of persons
+            return ListView.builder(
+              itemCount: personsList.length,
+              itemBuilder:(context, index) {
+                // Get each person document
+                DocumentSnapshot personDoc = personsList[index];
+                String personID = personDoc.id;
+                
+                // get person from person document
+                Map<String, dynamic> personData = 
+                  personDoc.data() as Map<String, dynamic>;
+
+                String nameText = personData['personName'] ?? '';
+                String emailText = personData['personEmail'] ?? '';
+                int ageText = personData['personAge'] ?? 0;
+
+                return ListTile(
+                  title: Text(nameText),
+                  subtitle: Text('Email: $emailText, Age: $ageText'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.edit),
+                        onPressed: () => openPersonBox(personID), // Open dialog to edit person
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete),
+                        onPressed: () {
+                          firestoreService.deletePerson(personID);
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              },
+              );
+          }
+          // if we don't have data, show a maessage
+          else {
+            return Center(
+              child: Text("No persons found"),
+            );
+          }
+        },
+      ),
+    );
+  }
 }
